@@ -11,27 +11,8 @@ contract propertyNFT is ERC721Enumerable, Ownable {
 
     // token ID and number of properties minted
     uint256 tokenIds;
-
-    //Owner of the property
-    address owner;
-
-    // List of all rented dates
-    string[] datesRented;
-
     // price for a day
-    uint256 price;
-
-    // Description of the property
-    struct content {
-        uint256 nbGuest;
-        uint256 nbBed;
-        uint256 size;
-        string description;
-        string title;
-        uint256 latitude;
-        uint256 longitude;
-        string city;
-    }
+    uint256 public _price = 0.01 ether;
 
     /**
         * @dev ERC721 constructor takes in a `name` and a `symbol` to the token collection.
@@ -41,6 +22,7 @@ contract propertyNFT is ERC721Enumerable, Ownable {
     constructor (string memory baseURI) ERC721("propertyNFT", "PNT") {
         _baseTokenURI = baseURI;
     }
+
 
     /**
     * @dev mint allows an user to mint 1 NFT per transaction.
