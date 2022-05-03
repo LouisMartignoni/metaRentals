@@ -1,19 +1,29 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+import { NFTStorage, File } from "nft.storage";
+import dotenv from 'dotenv';
 
-describe("Greeter", function () {
-  it("Should return the new greeting once it's changed", async function () {
-    const Greeter = await ethers.getContractFactory("Greeter");
-    const greeter = await Greeter.deploy("Hello, world!");
-    await greeter.deployed();
+const NFT_STORAGE_KEY = process.env.NFT_STORAGE_API_KEY
 
-    expect(await greeter.greet()).to.equal("Hello, world!");
+describe("List a new NFT", function () {
+  it("Should return store the metadata with NFT storage and mint the token", async function () {
+    const propertyContract = await ethers.getContractFactory("propertyNFT");
 
-    const setGreetingTx = await greeter.setGreeting("Hola, mundo!");
+    // deploy the contract
+    const deployedPropertyContract = await propertyContract.deploy();
 
-    // wait until the transaction is mined
-    await setGreetingTx.wait();
+    await deployedPropertyContract.deployed();
 
-    expect(await greeter.greet()).to.equal("Hola, mundo!");
+    const client = new NFTStorage({ token: NFT_STORAGE_KEY });
+    const metadata = await client.store(
+      {
+        name: 'Test',
+        description: 'First test to write metadata'
+      }
+      );
+    
+    console.log("Metadata stored on Filecoin and IPFS with URL:", metadata.url);
+
+    //expect(await greeter.greet()).to.equal("Hola, mundo!");
   });
 });
