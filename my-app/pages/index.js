@@ -10,7 +10,7 @@ import {
 } from "../constants";
 import styles from "../styles/Home.module.css";
 import { NFTStorage, File } from "nft.storage";
-//import fs from 'fs';
+
 
 export default function Home() {
   // True if waiting for a transaction to be mined, false otherwise.
@@ -18,6 +18,8 @@ export default function Home() {
   // True if user has connected their wallet, false otherwise
   const [walletConnected, setWalletConnected] = useState(false);
   const web3ModalRef = useRef();
+
+  const [selectedFile, setSelectedFile] = useState(null);
 
   // Helper function to connect wallet
   const connectWallet = async () => {
@@ -29,11 +31,6 @@ export default function Home() {
     }
   };
 
-  async function fileFromPath(filePath) {
-    const content = await fs.promises.readFile(filePath)
-    const type = mime.getType(filePath)
-    return new File([content], path.basename(filePath), { type })
-}
 
   // Calls the `executeProposal` function in the contract, using
   // the passed proposal ID
@@ -42,17 +39,18 @@ export default function Home() {
       const signer = await getProviderOrSigner(true);
       const propertyContract = getPropertyContractInstance(signer);
 
+      //const uploadFiles = document.getElementById("input-file").files;
+      console.log(selectedFile);
 
       const client = new NFTStorage({ token: NFT_STORAGE_KEY });
       const metadata = await client.store({
         name: 'Test',
         description: 'First test to write metadata',
-        image: new File(
-          [await fs.promises.readFile('public/pesky2.jpg')],
-          'MyExampleNFT.png',
-          { type: 'image/jpg' }
-          )
+        image: selectedFile,
       });
+
+      console.log('passed');
+      console.log(metadata.url);
 
       const metadataURI = metadata.url.href.replace(/^ipfs:\/\//, "");
 
@@ -149,25 +147,16 @@ export default function Home() {
 
 
   return (
-    <div>
-      <Head>
-        <title>METARENTALS</title>
-        <meta name="description" content="Metarentals test" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-
-      <div className={styles.main}>
-        <div>
-          <h1 className={styles.title}>Welcome to metarentals!</h1>
-          <div className={styles.flex}>
-          {renderButton()}
-          </div>
-        </div>
-      </div>
-
-      <footer className={styles.footer}>
-        Made with &#10084; by Crypto Devs
-      </footer>
+    <div className="App">
+      <form>
+        <input
+          id='input-file'
+          type="file"
+          value={""}
+          onChange={(e) => setSelectedFile(e.target.files[0])}
+        />
+      </form>
+      {renderButton()}
     </div>
   );
 }
