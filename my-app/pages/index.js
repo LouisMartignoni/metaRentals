@@ -52,7 +52,7 @@ export default function Home() {
       console.log('passed');
       console.log(metadata.url);
 
-      const metadataURI = metadata.url.href.replace(/^ipfs:\/\//, "");
+      const metadataURI = metadata.url.replace(/^ipfs:\/\//, "");
 
       const [owner] = await ethers.getSigners();
 
