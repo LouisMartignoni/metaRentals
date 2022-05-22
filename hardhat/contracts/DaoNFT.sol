@@ -1,112 +1,90 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.14;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
 
-contract daoNFT is VRFConsumerBase, ERC721, ERC721URIStorage, Ownable {
-    using SafeMath for uint256;
+
+contract DaoNFT is VRFConsumerBaseV2, ERC721URIStorage, ERC721Enumerable {
     using Strings for uint256;
 
-    //Chainlink variables
-    // The amount of LINK to send with the request
-    uint256 public fee;
-    // ID of public key against which randomness is generated
-    bytes32 public keyHash;
-    uint256 public randomResult;
-    address public VRFCoordinator;
-    // mumbai: 0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed
-    address public LinkToken;
-    // mumbai: 0x326C977E6efc84E512bB9C30f76E30c160eD06FB
+    bytes32 public keyHash = 0x4b09e658ed251bcafeebbc69400383d49f344ace09b9576fe248bb02c003fe9f;
+    address public vrfCoordinator = 0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed;
+    uint64 private s_subscriptionId;
+    
+    string public carURI;
 
-    // mapping of the random number requests and the sender
-    mapping(bytes32 => address) requestToSender;
+    // Default VRF Value      
+    uint32 callbackGasLimit = 200000;
+    uint16 requestConfirmations = 3;
+    uint32 numWords =  1;
 
+    mapping(uint256 => address) requestToSender;
+    uint256 public s_requestId;
 
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
+    event RandomnessRequested(uint256 requestId);
 
-    // Minting price ?
-    uint256 public _price = 0.01 ether;
-
-    /**
-        * @dev ERC721 constructor takes in a `name` and a `symbol` to the token collection.
-        * name in our case is `LW3Punks` and symbol is `LW3P`.
-        * Constructor for LW3P takes in the baseURI to set _baseTokenURI for the collection.
-        */
-    constructor (address _VRFCoordinator, address _LinkToken, bytes32 _keyhash, baseURI)
-    VRFConsumerBase(_VRFCoordinator, _LinkToken)
-    ERC721("DaoNFT", "DNT") {
-        VRFCoordinator = _VRFCoordinator;
-        LinkToken = _LinkToken;
-        keyHash = _keyhash;
-        fee = 0.1 * 10**18; // 0.1 LINK
-        _baseTokenURI = baseURI;
+    constructor(
+        address vrfCoordinator,
+        bytes32 keyHash,
+        string memory _carURI,
+        uint64 subscriptionId
+        )
+        ERC721("DaoNFT", "DNT") VRFConsumerBaseV2(vrfCoordinator) {
+        carURI = _carURI;
+        s_subscriptionId = subscriptionId;
     }
 
-    // Request the random number
-    function requestNewRandomCharacter() public returns (bytes32) {
-        require(
-            LINK.balanceOf(address(this)) >= fee,
-            "Not enough LINK - fill contract with faucet"
-        );
-        bytes32 requestId = requestRandomness(keyHash, fee);
-        requestToSender[requestId] = msg.sender;
-        return requestId;
-    }
-
-    // Get the answer back
-    function fulfillRandomness(bytes32 requestId, uint256 randomNumber)
-        internal
-        override
-    {
-        _tokenIds.increment();
-        uint256 newId = _tokenIds.current();
-
-        // Define 
-        uint256 randomValue = (randomNumber % 10);
-
-        //QmQBHarz2WFczTjz5GnhjHrbUPDnB48W5BM2v2h6HbE1rZ/1.png => baseURI/randomValue.png
-        const metadataURI = tokenURI(randomValue);
-
-        _safeMint(requestToSender[requestId], newId);
-        _setTokenURI(newId, metadataURI);
+    function requestRandomWords() public {
+        s_requestId = VRFCoordinatorV2Interface(vrfCoordinator).requestRandomWords(
+            keyHash,
+            s_subscriptionId,
+            requestConfirmations,
+            callbackGasLimit,
+            numWords
+            );
+        requestToSender[s_requestId] = msg.sender;
+        
+        emit RandomnessRequested(s_requestId);
     }
 
 
-    /**
-    * @dev _baseURI overides the Openzeppelin's ERC721 implementation which by default
-    * returned an empty string for the baseURI
-    */
-    function _baseURI() internal pure override returns (string memory) {
-        return _baseTokenURI;
+    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords) internal override {
+          // Get random image for metadata
+          uint256 randomValue = (randomWords[0] % 10);
+          string memory metadataURI = tokenURI(randomValue);
+          uint256 tokenId = totalSupply();
+          // Mint token and attributer metadata
+         _safeMint(requestToSender[requestId], tokenId);
+         _setTokenURI(tokenId, metadataURI);
+    }
+
+    function tokenURI(uint256 tokenId) public view virtual override(ERC721, ERC721URIStorage) returns (string memory) {
+        return bytes(carURI).length > 0 ? string(abi.encodePacked(carURI, tokenId.toString(), ".png")) : "";
     }
 
     function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
         super._burn(tokenId);
     }
 
-    /**
-    * @dev tokenURI overides the Openzeppelin's ERC721 implementation for tokenURI function
-    * This function returns the URI from where we can extract the metadata for a given tokenId
-    */
-    function tokenURI(uint256 tokenId) public view virtual override(ERC721, ERC721URIStorage) returns (string memory) {
-
-        string memory baseURI = _baseURI();
-        // Here it checks if the length of the baseURI is greater than 0, if it is return the baseURI and attach
-        // the tokenId and `.json` to it so that it knows the location of the metadata json file for a given 
-        // tokenId stored on IPFS
-        // If baseURI is empty return an empty string
-        return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, tokenId.toString(), ".png")) : "";
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC721, ERC721Enumerable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 
-
-    // Function to receive Ether. msg.data must be empty
-    receive() external payable {}
-
-    // Fallback function is called when msg.data is not empty
-    fallback() external payable {}
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal virtual override(ERC721, ERC721Enumerable) {
+        super._beforeTokenTransfer(from, to, tokenId);
+    }
 }
